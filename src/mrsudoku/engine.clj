@@ -7,8 +7,13 @@
 (defn values
   "Return the set of values of a vector or grid `cells`."
   [cells]
-  ;;; à compléter
-  nil)
+  ;;; à compléter//done
+  (loop [cells cells, ens #{}]
+    (if (seq cells)
+      (if-let [value (g/cell-value (first cells))]
+        (recur (rest cells) (conj ens value))
+        (recur (rest cells) ens))
+      ens)))
 
 (fact
  (values (g/block sudoku-grid 1)) => #{5 3 6 9 8})
@@ -23,7 +28,7 @@
  (values (g/block sudoku-grid 8)) => #{4 1 9 8})
 
 (fact
- (values (g/row sudoku-grid 8)) => #{6 4 1 9 5})
+ (values (g/row sudoku-grid 8)) => #{4 1 9 5})
 
 (fact
  (values (g/col sudoku-grid 8)) => #{6 8 7})
@@ -32,8 +37,18 @@
   "Return the set of values of a vector of cells, except the `except`-th."
   [cells except]
   {:pre [(<= 1 except (count cells))]}
-  ;;; à compléter
-  nil)
+  ;;; à compléter//done
+
+
+  (loop [cells cells, ens #{}, i 1]
+    (if (seq cells)
+      (if (= i except)
+        (recur (rest cells) ens (inc i))
+        (if-let [value (g/cell-value (first cells))]
+          (recur (rest cells) (conj ens value) (inc i))
+          (recur (rest cells) ens (inc i))))
+      ens)))
+
 
 (fact
  (values-except (g/block sudoku-grid 1) 1) => #{3 9 6 8})
@@ -75,7 +90,7 @@
   (assoc conflict1 :kind (merge-conflict-kind (:kind conflict1) (:kind conflict2))))
 
 (defn merge-conflicts [& conflicts]
-  (apply (partial merge-with merge-conflict) conflicts)) 
+  (apply (partial merge-with merge-conflict) conflicts))
 
 (defn update-conflicts
   [conflict-kind cx cy value conflicts]
@@ -93,8 +108,19 @@
 (defn row-conflicts
   "Returns a map of conflicts in a `row`."
   [row cy]
-  ;;; à compléter
-  nil)
+  ;;; à compléter//
+  (let [rowsize (count row)]
+    (loop [cx 1, res {}]
+      (if (<= cx rowsize)
+        (if (= :set (get (nth row (dec cx))  :status))
+          (let [cxval (g/cell-value (nth row (dec cx)))]
+            (if (contains? (values-except row cx) cxval)
+              (recur (inc cx) (assoc res [cx cy] {:status :conflict, :kind :row, :value cxval}))
+              (do (println "passage")
+              (recur (inc cx) res))))
+          (recur (inc cx) res))
+        res))))
+
 
 (fact
  (row-conflicts (map #(g/mk-cell :set %) [1 2 3 4]) 1) => {})
