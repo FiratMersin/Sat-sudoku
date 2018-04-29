@@ -1,10 +1,11 @@
-(ns mrsudoku.sat.encode
+ (ns mrsudoku.sat.encode
   (:require [midje.sweet :refer [fact]]
-            [mrsudoku.grid :as g]))
+            [mrsudoku.grid :as g])
+            (:require [mrsudoku.utils :refer [concatv]]))
 
 (def ex-grille @#'g/sudoku-grid)
 
-(fact 
+(fact
   (g/cell ex-grille 1 1) => {:status :init, :value 5}
   (g/cell ex-grille 4 2) => {:status :init, :value 1}
   (g/cell ex-grille 9 9) => {:status :init, :value 9}
@@ -14,6 +15,12 @@
 ;; <<A DEFINIR>>
 (declare log-binary)
 
+(defn log-binary [n]
+  (loop [n n, div (quot n 2) , remain (mod n 2), res ()]
+    (if (zero? div)
+      (conj res remain)
+      (recur div, (quot div 2), (mod div 2), (conj res remain)))))
+
 (fact
   (log-binary 5) => '(1 0 1)
   (log-binary 9) => '(1 0 0 1)
@@ -22,21 +29,35 @@
 ;; <<A DEFINIR>>
 (declare pad-seq)
 
+(defn pad-seq [s fill t];; on suppose que s est au moins de longueur t
+  (let [sizes (count s)
+        sizefill (- t sizes)
+        vecfill  (into [] (take sizefill (cycle [fill])))]
+    (seq (concatv vecfill s))))
+
 (fact
   (pad-seq (log-binary 1) 0 4) => '(0 0 0 1)
   (pad-seq (log-binary 5) 0 4) => '(0 1 0 1)
   (pad-seq (log-binary 9) 0 4) => '(1 0 0 1)
   (pad-seq '(:a :b :c) :x 7) => '(:x :x :x :x :a :b :c))
 
+(declare encode-value)
+
 (defn encode-value
   "Encode une valeur de cellule `n` (entre 1 et 9) en une séquence de 4 bits."
   [n]
   (pad-seq (log-binary n) 0 4))
 
-(defn mkcellbit 
+(fact
+  (encode-value 1) => '(0 0 0 1)
+  (encode-value 5) => '(0 1 0 1)
+  (encode-value 9) => '(1 0 0 1))
+
+
+(defn mkcellbit
   "Créer la variable du `bit` spécifié (entre 0 poids faible
    et 3 poids fort) pour la cellule située en `cx` (colonne)
-  et `cy` (ligne)." 
+  et `cy` (ligne)."
   [cx cy bit]
   (symbol (str "x" cx "y" cy "b" bit)))
 
@@ -44,66 +65,114 @@
   (mkcellbit 6 2 2) => 'x6y2b2
   (mkcellbit 4 3 0) => 'x4y3b0)
 
+
+(declare encode-num-aux)
+
+(defn encode-num-aux [cx cy bitval b]
+  (if (zero? bitval)
+    (list 'not (mkcellbit cx cy b))
+    (mkcellbit cx cy b)))
+
 ;; <<A DEFINIR>>
 (declare encode-num)
 
+(defn encode-num [cx cy n]
+  (let [bitseq (encode-value n)
+        b0 (encode-num-aux cx cy (nth bitseq 3) 0)
+        b1 (encode-num-aux cx cy (nth bitseq 2) 1)
+        b2 (encode-num-aux cx cy (nth bitseq 1) 2)
+        b3 (encode-num-aux cx cy (nth bitseq 0) 3)]
+    (list 'and b0 (list 'and b1 (list 'and b2 (list 'and b3 true))))))
+
 (fact
   ;; bits '(0 1 0 1) donne x6y2b0 /\ (not x6y2b1) /\ x6y2b2 /\ (not x6y2 b3)
-  (encode-num 6 2 5) => '(and x6y2b0 (and (not x6y2b1) (and x6y2b2 
+  (encode-num 6 2 5) => '(and x6y2b0 (and (not x6y2b1) (and x6y2b2
                                                             (and (not x6y2b3) true))))
   ;; bits '(0 0 0 1) donne x6y2b0 /\ (not x6y2b1) /\ (not x6y2b2) /\ (not x6y2 b3)
-  (encode-num 2 3 1) => '(and x2y3b0 (and (not x2y3b1) (and (not x2y3b2) 
+  (encode-num 2 3 1) => '(and x2y3b0 (and (not x2y3b1) (and (not x2y3b2)
                                                             (and (not x2y3b3) true))))
   ;; bits '(1 0 0 1) donne x6y2b0 /\ (not x6y2b1) /\ (not x6y2b2) /\ x6y2 b3)
-  (encode-num 2 3 9) => '(and x2y3b0 (and (not x2y3b1) (and (not x2y3b2) 
+  (encode-num 2 3 9) => '(and x2y3b0 (and (not x2y3b1) (and (not x2y3b2)
                                                             (and x2y3b3 true)))))
-(defn encode-inits 
+
+
+(defn encode-inits
   "Formule d'encodage des cellules déjà remplies dans la `grille`"
   [grille]
-  (g/reduce-grid 
+  (g/reduce-grid
    (fn [acc cx cy cell]
      (if (= (:status cell) :empty)
        acc
        (list 'and (encode-num cx cy (:value cell)) acc))) true grille))
 
+
+
+
+(declare encode-vide-aux)
+
+(defn encode-vide-aux [cx cy n]
+  (if (= 1 n)
+    (list 'or (encode-num cx cy n) false)
+    (list 'or (encode-num cx cy n) (encode-vide-aux cx cy (dec n)))))
+
 ;; <<A DEFINIR>>
 (declare encode-vide)
 
+(defn encode-vide [cx cy]
+  (encode-vide-aux cx cy 9))
+
+
 (fact
  (encode-vide 7 3) ;; encodage d'une cellule vide en cx=7 et cy=3
- => '(or (and 
-          x7y3b0 
-          (and (not x7y3b1) (and (not x7y3b2) (and x7y3b3 true)))) 
-         (or (and (not x7y3b0) (and (not x7y3b1) (and (not x7y3b2) (and x7y3b3 true)))) 
-             (or (and x7y3b0 (and x7y3b1 (and x7y3b2 (and (not x7y3b3) true)))) 
-                 (or (and (not x7y3b0) (and x7y3b1 (and x7y3b2 (and (not x7y3b3) true)))) 
-                     (or (and x7y3b0 (and (not x7y3b1) 
-                                          (and x7y3b2 (and (not x7y3b3) true)))) 
-                         (or (and (not x7y3b0) 
-                                  (and (not x7y3b1) 
-                                       (and x7y3b2 (and (not x7y3b3) true)))) 
-                             (or (and x7y3b0 (and x7y3b1 
-                                                  (and (not x7y3b2) 
-                                                       (and (not x7y3b3) true)))) 
-                                 (or (and (not x7y3b0) (and x7y3b1 
-                                                            (and (not x7y3b2) 
-                                                                 (and (not x7y3b3) true)))) 
-                                     (or (and x7y3b0 (and (not x7y3b1) 
-                                                          (and (not x7y3b2) 
+ => '(or (and
+          x7y3b0
+          (and (not x7y3b1) (and (not x7y3b2) (and x7y3b3 true))))
+         (or (and (not x7y3b0) (and (not x7y3b1) (and (not x7y3b2) (and x7y3b3 true))))
+             (or (and x7y3b0 (and x7y3b1 (and x7y3b2 (and (not x7y3b3) true))))
+                 (or (and (not x7y3b0) (and x7y3b1 (and x7y3b2 (and (not x7y3b3) true))))
+                     (or (and x7y3b0 (and (not x7y3b1)
+                                          (and x7y3b2 (and (not x7y3b3) true))))
+                         (or (and (not x7y3b0)
+                                  (and (not x7y3b1)
+                                       (and x7y3b2 (and (not x7y3b3) true))))
+                             (or (and x7y3b0 (and x7y3b1
+                                                  (and (not x7y3b2)
+                                                       (and (not x7y3b3) true))))
+                                 (or (and (not x7y3b0) (and x7y3b1
+                                                            (and (not x7y3b2)
+                                                                 (and (not x7y3b3) true))))
+                                     (or (and x7y3b0 (and (not x7y3b1)
+                                                          (and (not x7y3b2)
                                                                (and (not x7y3b3) true))))
                                          false))))))))))
 
-(defn encode-vides 
+(defn encode-vides
   "Formule d'encodage des cellules vides de la `grille`."
   [grille]
-  (g/reduce-grid 
+  (g/reduce-grid
     (fn [acc cx cy cell]
       (if (= (:status cell) :empty)
         (list 'and (encode-vide cx cy) acc)
         acc)) true grille))
 
 ;; <<A DEFINIR>>
+(declare distinct-empty-empty-aux)
+
+(defn distinct-empty-empty-aux [cx1 cy1 cx2 cy2 b]
+  (let [ch1 (symbol (str "l" cy1 "c" cx1 "b" b))
+        ch2 (symbol (str "l" cy2 "c" cx2 "b" b))]
+  (list '<=> ch1 (list 'not ch2))))
+
+
 (declare distinct-empty-empty)
+
+(defn distinct-empty-empty [cx1 cy1 cx2 cy2]
+  (let [b0 (distinct-empty-empty-aux cx1 cy1 cx2 cy2 0)
+        b1 (distinct-empty-empty-aux cx1 cy1 cx2 cy2 1)
+        b2 (distinct-empty-empty-aux cx1 cy1 cx2 cy2 2)
+        b3 (distinct-empty-empty-aux cx1 cy1 cx2 cy2 3)]
+    (list 'and b0 (list 'and b1 (list 'and b2 (list 'and b3 true))))))
+
 
 (fact
  ;; les cellules entre cx1=2,cy1=3 et cx2=2,cy=5 doivent être distinctes
@@ -115,15 +184,35 @@
                          true)))))
 
 ;; <<A DEFINIR>>
+(declare distinct-filled-empty-aux)
+
+(defn distinct-filled-empty-aux [bitval cx2 cy2 b]
+  (if (zero? bitval)
+    (symbol (str "x" cx2 "y" cy2 "b" b))
+    (list 'not (symbol (str "x" cx2 "y" cy2 "b" b)))))
+
+(distinct-filled-empty-aux 0 3 6 0)
+
+
 (declare distinct-filled-empty)
+
+(defn distinct-filled-empty [cval1 cx2 cy2]
+  (let [bitseq (encode-value cval1)
+        b0 (distinct-filled-empty-aux (nth bitseq 3) cx2 cy2 0)
+        b1 (distinct-filled-empty-aux (nth bitseq 2) cx2 cy2 1)
+        b2 (distinct-filled-empty-aux (nth bitseq 1) cx2 cy2 2)
+        b3 (distinct-filled-empty-aux (nth bitseq 0) cx2 cy2 3)]
+    (list 'or b0 (list 'or b1 (list 'or b2 (list 'or b3 false))))))
+
 
 (fact
  ;; cval1=5  et cx2=3,cy2=6
  (distinct-filled-empty 5 3 6)
  => '(or (not x3y6b0) (or x3y6b1 (or (not x3y6b2) (or x3y6b3 false)))))
 
+
 (defn distinct-pair [cx1 cy1 cell1 cx2 cy2 cell2]
-  (cond 
+  (cond
     ;; cas 1 : deux cellules vides
     (and (= (:status cell1) :empty) (= (:status cell2) :empty))
     (distinct-empty-empty cx1 cy1 cx2 cy2)
@@ -141,9 +230,9 @@
 
 (fact
  (distinct-pair 2 3 {:status :empty} 5 6 {:status :empty})
- => '(and (<=> l3c2b0 (not l6c5b0)) 
-          (and (<=> l3c2b1 (not l6c5b1)) 
-               (and (<=> l3c2b2 (not l6c5b2)) 
+ => '(and (<=> l3c2b0 (not l6c5b0))
+          (and (<=> l3c2b1 (not l6c5b1))
+               (and (<=> l3c2b2 (not l6c5b2))
                     (and (<=> l3c2b3 (not l6c5b3)) true))))
  (distinct-pair 2 3 {:status :init :value 5} 5 6 {:status :empty})
  => '(or (not x5y6b0) (or x5y6b1 (or (not x5y6b2) (or x5y6b3 false))))
@@ -155,31 +244,62 @@
  => false)
 
 ;; <<A DEFINIR>>
-(declare distinc-cells)
 
-(fact
- (distinct-cells '([1 1 {:status :empty}] 
-                   [2 1 {:status :init :value 5}] 
-                   [2 2 {:status :empty}]))
- => '(and true 
-          (and (and (or (not x2y2b0) 
-                        (or x2y2b1 (or (not x2y2b2) (or x2y2b3 false)))) true) 
-               (and (and (and (<=> l1c1b0 (not l2c2b0)) 
-                              (and (<=> l1c1b1 (not l2c2b1)) 
-                                   (and (<=> l1c1b2 (not l2c2b2)) 
-                                        (and (<=> l1c1b3 (not l2c2b3)) true)))) 
-                         (and (or (not x1y1b0) (or x1y1b1 
-                                                   (or (not x1y1b2) (or x1y1b3 false)))) 
-                              true)) 
-                    true))))
+(declare distinct-cells-aux)
 
-(defn fetch-row 
+(defn distinct-cells-aux [cell1 cell2]
+  (if (and (= :empty (get (nth cell1 2) :status)) (= :empty (get (nth cell2 2) :status)))
+    (distinct-empty-empty (nth cell1 0) (nth cell1 1) (nth cell2 0) (nth cell2 1))
+    (if (and (= :init (get (nth cell1 2) :status)) (= :init (get (nth cell2 2) :status)))
+      (if (= (get (nth cell2 2) :value) (get (nth cell1 2) :value))
+        false
+        true)
+      (if (= :empty (get (nth cell1 2) :status))
+        (list 'and (distinct-filled-empty (get (nth cell2 2) :value) (nth cell1 0) (nth cell1 1)) true)
+        (list 'and (distinct-filled-empty (get (nth cell1 2) :value) (nth cell2 0) (nth cell2 1)) true)))))
+
+(distinct-cells-aux [2 2 {:status :empty}]
+                   [2 1 {:status :init :value 5}])
+
+(distinct-cells-aux [1 1 {:status :empty}]
+                   [2 2 {:status :empty}])
+
+(declare distinct-cells)
+
+(defn distinct-cells
+  ([cells]
+   (list 'and true (distinct-cells cells 0 1 (- (count cells) 1))))
+  ([cells n1 n2 taille]
+   (if (= n1 taille)
+     true
+     (if (= n2 taille)
+       (list 'and (distinct-cells-aux (nth cells n1) (nth cells n2)) (distinct-cells cells (inc n1) (+ n1 2) taille))
+       (list 'and (distinct-cells-aux (nth cells n1) (nth cells n2)) (distinct-cells cells n1 (inc n2) taille))))))
+
+
+;;(fact
+;; (distinct-cells '([1 1 {:status :empty}]
+;;                   [2 1 {:status :init :value 5}]
+;;                   [2 2 {:status :empty}]))
+;; => '(and true
+;;          (and (and (or (not x2y2b0)
+ ;;                       (or x2y2b1 (or (not x2y2b2) (or x2y2b3 false)))) true)
+ ;;              (and (and (and (<=> l1c1b0 (not l2c2b0))
+  ;;                            (and (<=> l1c1b1 (not l2c2b1))
+   ;;                                (and (<=> l1c1b2 (not l2c2b2))
+  ;;                                      (and (<=> l1c1b3 (not l2c2b3)) true))))
+    ;;                     (and (or (not x1y1b0) (or x1y1b1
+     ;;                                              (or (not x1y1b2) (or x1y1b3 false))))
+    ;;                          true))
+    ;;                true))))
+
+(defn fetch-row
   "Récupère les cellules de la ligne `cy` de la `grille`."
-  [grille cy] 
+  [grille cy]
   (map (fn [cx cell]
          [cx cy cell]) (range 1 10) (g/row grille cy)))
 
-(defn encode-rows 
+(defn encode-rows
   "Formule d'encodage des contraintes de ligne dans la grille."
   [grille]
   (loop [cy 1, phi true]
@@ -190,7 +310,7 @@
 
 (defn fetch-col
   "Récupère les cellules de la colonne `cx` de la `grille`."
-  [grille cx] 
+  [grille cx]
   (map (fn [cy cell]
          [cx cy cell]) (range 1 10) (g/col grille cx)))
 
@@ -203,23 +323,23 @@
                             phi))
       phi)))
 
-(defn block-rows 
+(defn block-rows
   "Séquence des coordonnées de ligne des cellules du block `b`"
   [b]
   (map #(+ (* (mod (dec b) 3) 3)
            1 (mod % 3)) (range 0 9)))
 
-(defn block-cols 
+(defn block-cols
   [b]
   (map #(+ (quot % 3) 1
            (* (quot (dec b) 3) 3)) (range 0 9)))
 
-(defn fetch-block 
+(defn fetch-block
   "Récupère les cellules du block `b` de la `grille`."
   [grille b]
    (map vector (block-rows b) (block-cols b) (g/block grille b)))
 
-(defn encode-blocks 
+(defn encode-blocks
   "Formule d'encodage des contraintes de bloc dans la grille."
   [grille]
   (loop [b 1, phi true]
@@ -238,6 +358,6 @@
                     (list 'and (encode-cols grille)
                           (list 'and (encode-blocks grille))))))),
 
-;; (encode-sudoku ex-grille)
+ ;;(encode-sudoku ex-grille)
 ;; => .... attention : formule énorme ! ....
 

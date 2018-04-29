@@ -116,8 +116,7 @@
           (let [cxval (g/cell-value (nth row (dec cx)))]
             (if (contains? (values-except row cx) cxval)
               (recur (inc cx) (assoc res [cx cy] {:status :conflict, :kind :row, :value cxval}))
-              (do (println "passage")
-              (recur (inc cx) res))))
+              (recur (inc cx) res)))
           (recur (inc cx) res))
         res))))
 
@@ -141,22 +140,85 @@
 (defn col-conflicts
   "Returns a map of conflicts in a `col`."
   [col cx]
-  ;;; à compléter
-  nil)
+  ;;; à compléter/done
+  (let [colsize (count col)]
+    (loop [cy 1, res {}]
+      (if (<= cy colsize)
+        (if (= :set (get (nth col (dec cy)) :status))
+          (let [cyval (g/cell-value (nth col (dec cy)))]
+            (if (contains? (values-except col cy) cyval)
+              (recur (inc cy) (assoc res [cx cy] {:status :conflict, :kind :col, :value cyval}))
+              (recur (inc cy) res)))
+          (recur (inc cy) res))
+        res))))
 
-;;; Ecrire les 'fact'  nécessaires...
+;;; Ecrire les 'fact'  nécessaires.../done
+
+(fact
+ (col-conflicts (map #(g/mk-cell :set %) [1 2 3 4]) 1) => {})
+
+(fact
+ (col-conflicts (map #(g/mk-cell :set %) [1 2 3 1]) 1)
+ => {[1 1] {:status :conflict, :kind :col, :value 1},
+     [1 4] {:status :conflict, :kind :col, :value 1}})
+
+(fact
+ (col-conflicts [{:status :init, :value 8} {:status :empty} {:status :empty} {:status :empty} {:status :init, :value 6}
+                 {:status :set, :value 6} {:status :empty} {:status :empty} {:status :init, :value 3}] 4)
+ => {[4 6] {:status :conflict, :kind :col, :value 6}})
+
+
 
 (defn cols-conflicts
   [grid] (reduce merge-conflicts {}
                  (map (fn [c] (col-conflicts (g/col grid c) c)) (range 1 10))))
 
+(defn block-coord
+  [b n]
+  ;;b : numero du block
+  ;;n : n-ieme case du block
+  (let [l (if (> 4 n)
+            1
+            (if (> 7 n)
+              2
+              3))
+        c (if (zero? (mod n 3))
+            3
+            (if (= 1 (mod n 3))
+              1
+              2))
+        y (if (> 4 b)
+            l
+            (if (> 7 b)
+              (+ 3 l)
+              (+ 6 l)))
+        x (if (zero? (mod b 3))
+            (+ 6 c)
+            (if (= 1 (mod b 3))
+              c
+              (+ 3 c)))]
+    [x,y]))
+
 
 (defn block-conflicts
   [block b]
   ;;; à compléter
-  nil)
+  (let [blocksize (count block)]
+    (loop [n 1, res {}]
+      (if (<= n blocksize)
+        (if (= :set (get (nth block (dec n)) :status))
+          (let [nval (g/cell-value (nth block (dec n)))]
+            (if (contains? (values-except block n) nval)
+              (recur (inc n) (assoc res (block-coord b n) {:status :conflict, :kind :block, :value nval}))
+              (recur (inc n) res)))
+          (recur (inc n) res))
+        res))))
 
 ;;; Ecrire les 'fact' nécessaires...
+
+
+
+
 
 (defn blocks-conflicts
   [grid]
