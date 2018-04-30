@@ -283,3 +283,11 @@
 ;; En déduire une fonction :  cnfs prend une
 ;; formule quelconque et retourne la formule CNF simplifiée représentée par des ensembles
 ;; (en passant par la représentation DNF)
+
+
+
+
+
+
+
+

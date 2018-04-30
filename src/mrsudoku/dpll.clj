@@ -126,7 +126,7 @@
 (declare trivial-splitter)
 
 (defn trivial-splitter [phi]
-  (get-var (first (first phi))))
+  (get-var (first (seq (first phi)))))
 
 
 ;;deuxième splitter
@@ -138,13 +138,16 @@
               (update m x (fn [xnb]
                             (if xnb
                               (inc xnb)
-                              1)))))))
+                              1))))) m clause))
 
 
 (declare varfreqs)
 
 (defn varfreqs [phi]
-  (reduce varfreq1 {} phi))
+  (loop [phi phi, m {}]
+    (if (seq phi)
+      (recur (rest phi) (varfreq1 m (first phi)))
+      m)))
 
 (declare max-val)
 
@@ -154,7 +157,8 @@
       (let [[y, ynb] (first m)]
         (if (> ynb maxnb)
           (recur (rest m) y ynb)
-          (recur (rest m) x maxnb))))))
+          (recur (rest m) x maxnb)))
+      x)))
 
 (declare max-splitter)
 
@@ -182,3 +186,10 @@
                    (let [phi-false (make-var-false phi x)]
                      (and phi-false (dpll phi-false (assoc sat x false) splitter)))
                    nil))))))))
+
+
+
+;(symbol? (symbol (str "x" 2 "y" 3 "b" 1)))
+;(dpll #{ #{(symbol (str "x" 2 "y" 3 "b" 1)) }  #{ (list 'not(symbol (str "x" 2 "y" 3 "b" 2)) )} })
+
+;(map? (varfreqs #{ #{(symbol (str "x" 2 "y" 3 "b" 1)) }  #{ (symbol (str "x" 2 "y" 3 "b" 2)) }}))
