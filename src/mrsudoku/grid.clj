@@ -60,6 +60,38 @@
      (mk-cell) (mk-cell) (mk-cell 5)
      (mk-cell) (mk-cell 7) (mk-cell 9)]]])
 
+(def ^:private sudoku-grid2
+  [[;; row 1
+    [(mk-cell 5) (mk-cell 3) (mk-cell 4)
+     (mk-cell 6) (mk-cell 7) (mk-cell 2)
+     (mk-cell 1) (mk-cell 9) (mk-cell 8)]
+    [(mk-cell 6) (mk-cell 7) (mk-cell 8)
+     (mk-cell 1) (mk-cell 9) (mk-cell 5)
+     (mk-cell 3) (mk-cell 4) (mk-cell 2)]
+    [(mk-cell 9) (mk-cell 1) (mk-cell 2)
+     (mk-cell 3) (mk-cell 4) (mk-cell 8)
+     (mk-cell 5) (mk-cell 6) (mk-cell 7)] ],
+   [;; row 2
+    [(mk-cell 8) (mk-cell 5) (mk-cell 9)
+     (mk-cell 4) (mk-cell 2) (mk-cell 6)
+     (mk-cell 7) (mk-cell 1) (mk-cell 3)]
+    [(mk-cell 7) (mk-cell 6) (mk-cell 1)
+     (mk-cell 8) (mk-cell 5) (mk-cell 3)
+     (mk-cell 9) (mk-cell 2) (mk-cell 4)]
+    [(mk-cell 4) (mk-cell 2) (mk-cell 3)
+     (mk-cell 7) (mk-cell 9) (mk-cell 1)
+     (mk-cell 8) (mk-cell 5) (mk-cell 6)]],
+   [;; row 3
+    [(mk-cell 9) (mk-cell 6) (mk-cell 1)
+     (mk-cell 2) (mk-cell 8) (mk-cell 7)
+     (mk-cell 3) (mk-cell 4) (mk-cell 5)]
+    [(mk-cell 5) (mk-cell 3) (mk-cell 7)
+     (mk-cell 4) (mk-cell 1) (mk-cell 9)
+     (mk-cell 2) (mk-cell 8) (mk-cell 6)]
+    [(mk-cell 2) (mk-cell 8) (mk-cell 4)
+     (mk-cell 6) (mk-cell 3) (mk-cell 5)
+     (mk-cell 1) (mk-cell 7) (mk-cell 9)]]])
+
 
 (defn cell
   "Get the cell at coordinates `(cx,cy)`
@@ -162,7 +194,7 @@ with `cx` the column number and `cy` the row number."
   "Reduce the `b`-th `block` of a sudoku grid with a function taking 4
   parameters: `acc` for the accumulated value, `index` for the cell
   index in the block, `cx, cy` for the cell
-  coordinates in the grid and `cell` for the cell content."  
+  coordinates in the grid and `cell` for the cell content."
   [f init block b]
   (let [bx (* 3 (rem (- b 1) 3))
         by (* 3 (quot (- b 1) 3))]

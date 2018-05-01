@@ -1,4 +1,4 @@
-(ns dpllsolv)
+(ns mrsudoku.dplls)
 
 
 (declare find-1-literal)
@@ -190,6 +190,6 @@
 
 
 ;(symbol? (symbol (str "x" 2 "y" 3 "b" 1)))
-;(dpll #{ #{(symbol (str "x" 2 "y" 3 "b" 1)) }  #{ (list 'not(symbol (str "x" 2 "y" 3 "b" 2)) )} })
+(dpll #{ #{(symbol (str "x" 2 "y" 3 "b" 1)) }  #{ (list 'not(symbol (str "x" 2 "y" 3 "b" 2)) )} })
 
 ;(map? (varfreqs #{ #{(symbol (str "x" 2 "y" 3 "b" 1)) }  #{ (symbol (str "x" 2 "y" 3 "b" 2)) }}))

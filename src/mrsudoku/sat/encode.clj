@@ -171,17 +171,17 @@
         b1 (distinct-empty-empty-aux cx1 cy1 cx2 cy2 1)
         b2 (distinct-empty-empty-aux cx1 cy1 cx2 cy2 2)
         b3 (distinct-empty-empty-aux cx1 cy1 cx2 cy2 3)]
-    (list 'and b0 (list 'and b1 (list 'and b2 (list 'and b3 true))))))
+    (list 'or b0 (list 'or b1 (list 'or b2 (list 'or b3 false))))))
 
 
 (fact
  ;; les cellules entre cx1=2,cy1=3 et cx2=2,cy=5 doivent être distinctes
  (distinct-empty-empty 2 3 2 5)
- => '(and (<=> l3c2b0 (not l5c2b0)) ; bits b0 distincts
-          (and (<=> l3c2b1 (not l5c2b1)) ; b1
-               (and (<=> l3c2b2 (not l5c2b2)) ; b2
-                    (and (<=> l3c2b3 (not l5c2b3))  ; b3
-                         true)))))
+ => '(or (<=> l3c2b0 (not l5c2b0)) ; bits b0 distincts
+          (or (<=> l3c2b1 (not l5c2b1)) ; b1
+               (or (<=> l3c2b2 (not l5c2b2)) ; b2
+                    (or (<=> l3c2b3 (not l5c2b3))  ; b3
+                         false)))))
 
 ;; <<A DEFINIR>>
 (declare distinct-filled-empty-aux)
@@ -230,10 +230,10 @@
 
 (fact
  (distinct-pair 2 3 {:status :empty} 5 6 {:status :empty})
- => '(and (<=> l3c2b0 (not l6c5b0))
-          (and (<=> l3c2b1 (not l6c5b1))
-               (and (<=> l3c2b2 (not l6c5b2))
-                    (and (<=> l3c2b3 (not l6c5b3)) true))))
+ => '(or (<=> l3c2b0 (not l6c5b0))
+          (or (<=> l3c2b1 (not l6c5b1))
+               (or (<=> l3c2b2 (not l6c5b2))
+                    (or (<=> l3c2b3 (not l6c5b3)) false))))
  (distinct-pair 2 3 {:status :init :value 5} 5 6 {:status :empty})
  => '(or (not x5y6b0) (or x5y6b1 (or (not x5y6b2) (or x5y6b3 false))))
  (distinct-pair 5 6  {:status :empty} 2 3 {:status :init :value 5})
@@ -247,51 +247,45 @@
 
 (declare distinct-cells-aux)
 
-(defn distinct-cells-aux [cell1 cell2]
-  (if (and (= :empty (get (nth cell1 2) :status)) (= :empty (get (nth cell2 2) :status)))
-    (distinct-empty-empty (nth cell1 0) (nth cell1 1) (nth cell2 0) (nth cell2 1))
-    (if (and (= :init (get (nth cell1 2) :status)) (= :init (get (nth cell2 2) :status)))
-      (if (= (get (nth cell2 2) :value) (get (nth cell1 2) :value))
-        false
-        true)
-      (if (= :empty (get (nth cell1 2) :status))
-        (list 'and (distinct-filled-empty (get (nth cell2 2) :value) (nth cell1 0) (nth cell1 1)) true)
-        (list 'and (distinct-filled-empty (get (nth cell1 2) :value) (nth cell2 0) (nth cell2 1)) true)))))
-
-(distinct-cells-aux [2 2 {:status :empty}]
-                   [2 1 {:status :init :value 5}])
-
-(distinct-cells-aux [1 1 {:status :empty}]
-                   [2 2 {:status :empty}])
-
 (declare distinct-cells)
 
-(defn distinct-cells
-  ([cells]
-   (list 'and true (distinct-cells cells 0 1 (- (count cells) 1))))
-  ([cells n1 n2 taille]
-   (if (= n1 taille)
-     true
-     (if (= n2 taille)
-       (list 'and (distinct-cells-aux (nth cells n1) (nth cells n2)) (distinct-cells cells (inc n1) (+ n1 2) taille))
-       (list 'and (distinct-cells-aux (nth cells n1) (nth cells n2)) (distinct-cells cells n1 (inc n2) taille))))))
+(defn distinct-cells-aux [cell cells]
+  (if (= 1 (count cells))
+         (list 'and (distinct-pair (first cell) (second cell) (nth cell 2) (first (first cells)) (second (first cells)) (nth (first cells) 2)) true)
+         (list 'and (distinct-pair (first cell) (second cell) (nth cell 2) (first (first cells)) (second (first cells)) (nth (first cells) 2))
+               (distinct-cells-aux cell (rest cells)))))
 
 
-;;(fact
-;; (distinct-cells '([1 1 {:status :empty}]
-;;                   [2 1 {:status :init :value 5}]
-;;                   [2 2 {:status :empty}]))
-;; => '(and true
-;;          (and (and (or (not x2y2b0)
- ;;                       (or x2y2b1 (or (not x2y2b2) (or x2y2b3 false)))) true)
- ;;              (and (and (and (<=> l1c1b0 (not l2c2b0))
-  ;;                            (and (<=> l1c1b1 (not l2c2b1))
-   ;;                                (and (<=> l1c1b2 (not l2c2b2))
-  ;;                                      (and (<=> l1c1b3 (not l2c2b3)) true))))
-    ;;                     (and (or (not x1y1b0) (or x1y1b1
-     ;;                                              (or (not x1y1b2) (or x1y1b3 false))))
-    ;;                          true))
-    ;;                true))))
+(defn distinct-cells [cells]
+  (if (= 1 (count cells))
+    true
+    (list 'and (distinct-cells-aux (first cells) (rest cells)) (distinct-cells (rest cells)))))
+
+
+(distinct-cells '([1 1 {:status :empty}]
+                  [2 1 {:status :init :value 5}]
+                  [2 2 {:status :empty}]
+                  [2 3 {:status :empty}]
+                  [2 4 {:status :empty}]))
+
+
+(fact
+ (distinct-cells '([1 1 {:status :empty}]
+                   [2 1 {:status :init :value 5}]
+                   [2 2 {:status :empty}]))
+ => '(and (and (or (not x1y1b0)
+                (or x1y1b1 (or (not x1y1b2) (or x1y1b3 false))))
+             (and (or (<=> l1c1b0 (not l2c2b0))
+                              (or (<=> l1c1b1 (not l2c2b1))
+                                   (or (<=> l1c1b2 (not l2c2b2))
+                                        (or (<=> l1c1b3 (not l2c2b3)) false))))
+             true))
+                         (and (and (or (not x2y2b0) (or x2y2b1
+                                                   (or (not x2y2b2) (or x2y2b3 false))))
+                                   true)
+                              true)))
+
+
 
 (defn fetch-row
   "Récupère les cellules de la ligne `cy` de la `grille`."
@@ -358,6 +352,6 @@
                     (list 'and (encode-cols grille)
                           (list 'and (encode-blocks grille))))))),
 
- ;;(encode-sudoku ex-grille)
+ (encode-sudoku ex-grille)
 ;; => .... attention : formule énorme ! ....
 

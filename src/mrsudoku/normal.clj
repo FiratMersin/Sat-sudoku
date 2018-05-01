@@ -1,4 +1,4 @@
-(ns normal
+(ns mrsudoku.normal
    (:require [clojure.core.match :refer [match]])
   (:require [clojure.set :as set]))
 
@@ -31,6 +31,7 @@
     (['or a false] :seq) a
     ;; *** simplification du and ***
     ;; (and true a) -> a
+    (['and true true] :seq) true
     (['and true a] :seq) a
     ;; (and a true) -> a
     (['and a true] :seq) a
@@ -99,7 +100,7 @@
     ;; not ==> a b  -> (and (nnf a) (nnf (not b)))
     (['not (['==> a b] :seq)] :seq) (list 'and (nnf' a) (nnf' (list 'not b)))
     ;; ==> a b  -> (or (nnf (not a)) (nnf b))
-    (['==> a b] :seq) (list 'or (nnf' (list 'not a)) (nnf b))
+    (['==> a b] :seq) (list 'or (nnf' (list 'not a)) (nnf' b))
     ;; not <=> a b -> (or (and (nnf (not a)) (nnf b)) (and (nnf a) (nnf (not b))))
     (['not (['<=> a b] :seq)] :seq)
          (list 'or (list 'and (nnf' (list 'not a)) (nnf' b)) (list 'and (nnf' a) (nnf' (list 'not b))))
@@ -145,6 +146,12 @@
     (['and a (['or b c] :seq)] :seq)
     (list 'or (distrib (list 'and a b))
               (distrib (list 'and a c)))
+    (['or (['and a b] :seq) c] :seq)
+    (list 'and (distrib (list 'or a c))
+               (distrib (list 'or b c)))
+    (['or a (['and b c] :seq)] :seq)
+    (list 'and (distrib (list 'or a b))
+               (distrib (list 'or a c)))
     :else f))
 
 ;; Remarque : f doit être en NNF
@@ -163,7 +170,19 @@
 
 (dnf '(==> (or a b) (<=> c d)))
 
+(defn cnf' [f]
+  (match f
+    (['and a b] :seq) (list 'and (cnf' a)
+                                 (cnf' b))
+    (['or a b] :seq) (distrib (list 'or (cnf' a)
+                                        (cnf' b)))
 
+    :else f))
+
+(defn cnf [f]
+  (cnf' (nnf f)))
+
+(cnf '(or (and a (or b c)) (and (not a) (not c))))
 
 ;;; Problème : c'est pas lisible et c'est simplifiable
 ;;; Solution : représentation sous forme d'ensemble (conjonctif) de clauses (disjonctives)
@@ -174,7 +193,15 @@
     (set/union (setify-and a) (setify-and b))
     :else #{f}))
 
+(defn setify-or [f]
+  (match f
+    (['or a b] :seq)
+    (set/union (setify-or a) (setify-or b))
+    :else #{f}))
+
 (setify-and '(and a (and a (and (not b ) (not b)))))
+
+(setify-or '(or a (or a (or (not b ) (not b)))))
 
 (defn setify-dnf [f]
   (match f
@@ -182,94 +209,99 @@
    (['or a b] :seq) (set/union (setify-dnf a) (setify-dnf b))
    :else #{#{f}}))
 
+(defn setify-cnf [f]
+  (match f
+    (['and a b] :seq) (set/union (setify-cnf a) (setify-cnf b))
+    (['or a b] :seq) #{(setify-or f)}
+    :else #{#{f}}))
+
+
 (setify-dnf
   '(or (or (and a (not a)) (and a (not c))) (or (and (and b c) (not a)) (and (and b c) (not c)))))
 
 (setify-dnf (dnf '(==> (or a b) (<=> c d))))
 
+(setify-cnf (cnf '(==> (or a b) (<=> c d))))
+
+(nnf '(==> (or a b) (<=> c d)))
 
 ;; EXERCICE : retirer les clauses qui contiennent un litéral et sa négation
 ;; fonction :  filter-trivial
 
+(defn filter-trivial-one [clause];;retourne true si clause à supprimer, false sinon, les littéraux doivent être des symboles
+ (loop [clause clause, m {}]
+   (if (seq clause)
+     (let [[litt, signe] (if (symbol? (first clause))
+                           [(first clause), :positif]
+                           [(second (first clause)), :negatif])]
+       (if (= signe :positif)
+         (if (= :negatif (get m litt))
+           true
+           (recur (rest clause), (assoc m litt signe)))
+         (if (= :positif (get m litt))
+           true
+           (recur (rest clause), (assoc m litt signe)))))
+     false)))
 
 
-;(defn filter-trivial-aux [f]
- ; (match f
-;     (['and a (['not b] :seq)] :seq) (if (= a b)
-;                                       ()
-;                                       f)
- ;    ([op a] :seq) (list op (filter-trivial-aux a))
-  ;   ([op a b] :seq)
-   ;      (let [filter-a (filter-trivial-aux a)
-    ;           filter-b (filter-trivial-aux b)]
-     ;      (if (= () filter-a)
-      ;       (if (= () filter-b)
-       ;        ()
-        ;       (list op filter-b))
-         ;    (if (= () filter-b)
-          ;     (list op filter-a)
- ;              (list op filter-a filter-b))))
-  ;   :else f))
-
-;(defn filter-trivial [f]
- ; (let [res (filter-trivial-aux f)]
-  ;  (if (= res ())
-   ;   false
-   ;   (match res
-    ;     (['or a] :seq) (dnf a)
-     ;    :else res))))
-
-(defn cmp [l1 l2]
-  (match l1
-    (['not a] :seq
-
-(defn filter-trivial-one [clause t];; t = (taille clause -1)
-  (loop [cl clause, a (first clause), n 1]
-    (if (= t n)
-      true; clause non filtrée
-      (if (seq cl)
-        (if (cmp a (first cl))
-          false
-          (recur (rest cl) a n))
-        (recur clause, (nth clause (inc n)), (inc n))))))
-
-
-(defn filter-trivial [f];; f est un ensemble d'ensembles
-  (loop [f f, res #{}]
+(defn filter-trivial-cnf [f];; f est un ensemble d'ensembles
+  (loop [f f, resf #{}]
     (if (seq f)
-      (recur (rest f) (if (filter-trivial-one (seq (first f)) (count (seq (first f))))
-                        (conj res (first f))
-                        res))
-      res)))
-
- (setify-dnf '(or (or (and :a (not :a)) :b) (or (and :a (not :b)) :a)))
-(filter-trivial (setify-dnf '(or (or (and :c (not :c)) :d) (or (and :c (not :d)) :c))))
+      (if (filter-trivial-one (first f))
+        (recur (rest f) resf)
+        (recur (rest f) (conj resf (first f))))
+      resf)))
 
 
+(filter-trivial-cnf #{#{(symbol (str "x" 2 "y" 4 "b" 3)) (symbol (str "x" 2 "y" 3 "b" 0)) (symbol (str "x" 2 "y" 3 "b" 4))}
+                      #{(symbol (str "x" 2 "y" 3 "b" 3)) (symbol (str "x" 2 "y" 3 "b" 2)) (list 'not (symbol (str "x" 2 "y" 3 "b" 2)))}})
 
-(setify-dnf  '(or (or (and a (not a)) b) (or (and a (not b)) a)))
-(filter-trivial (setify-dnf  '(or (or (and a (not a)) b) (or (and a (not b)) a))))
-
-(setify-dnf (dnf '(==> (or a a) (<=> c d))))
-(filter-trivial (setify-dnf (dnf '(==> (or a a) (<=> c d)))))
 
 ;; EXERCICE : si on a une clause C1 incluse dans une clause C2
 ;; (par exemple: #{a (not b)}   et  #{a (not b) c})
 ;; alors on retire la plus grande C2 ..
 ;; fonction :  filter-subsume
 
+(defn get-map-litt-signe [clause]
+  (loop [clause clause, m {}]
+    (if (seq clause)
+      (let [[litt, signe] (if (symbol? (first clause))
+                           [(first clause), :positif]
+                           [(second (first clause)), :negatif])]
+        (recur (rest clause), (assoc m litt signe)))
+      m)))
+
+(defn containsall? [clause m]
+  (loop [clause clause]
+    (if (seq clause)
+      (let [[litt, signe] (if (symbol? (first clause))
+                           [(first clause), :positif]
+                           [(second (first clause)), :negatif])]
+        (if (nil? (get m litt))
+          false
+          (if (= signe (get m litt))
+            (recur (rest clause))
+            false)))
+      true)))
 
 
-(defn filter-subsume-aux [setf] nil)
- ; (loop [setf setf, res setf, i (dec (count setf))]
-    ;(if (zero? i)
-    ;  res
-    ;  (
+(defn filter-subsume-aux [clause1 clause2];;clause1 de taille >= à clause2
+  (let [m (get-map-litt-signe clause1)]
+    (if (containsall? clause2 m)
+      true
+      false)))
 
 
 
-(defn filter-subsume [f] nil)
-  ;;(let [setf (setify-dnf f)]
+
+
+(defn filter-subsume-cnf [f]
+  (let [size (count f)]
+  (loop [ftmp f, resf #{}, n 1]
+    (if (= size n)
+      resf
+      nil))));;à terminer!!!!!!!!!!!
+
 
 
 
@@ -277,12 +309,69 @@
 ;; EXERCICE : en déduire une fonction dnfs qui prend une
 ;; formule quelconque et retourne la formule DNF simplifiée représentée par des ensembles
 
-;; EXERCICE :  comment passer d'une DNF sous forme d'ensemble d'ensembles à une CNF ?
-;;             (indice : la CNF d'une formule f  est liée à la DNF de (not f) )
+
 
 ;; En déduire une fonction :  cnfs prend une
 ;; formule quelconque et retourne la formule CNF simplifiée représentée par des ensembles
-;; (en passant par la représentation DNF)
+(declare cnfs)
+
+(defn cnfs [f]
+  (filter-trivial-cnf (setify-cnf (cnf f))))
+
+
+(declare estLitteral)
+
+(defn estLitteral [litt?]
+  (or (symbol? litt?)
+      (= (first litt?) 'not)))
+
+(declare dcnf-aux)
+
+(defn dcnf-aux [f]
+  (if (estLitteral f)
+    [f, f]
+    (let [[conn, gauche, droite] f
+          [vgauche, g'] (dcnf-aux gauche)
+          [vdroite, d'] (dcnf-aux droite)
+          v (gensym "x")]
+      [v, (list 'and (cnf (list '<=> v (list conn vgauche vdroite)))
+                (list 'and g' d'))])))
+
+(declare dcnf)
+
+(defn dcnf [f]
+  (let [[v, f'] (dcnf-aux f)]
+    (list 'and v f')))
+
+
+
+
+
+
+
+
+
+
+
+
+
+  (dcnf (cnf (or (and true (symbol (str "x" 2 "y" 4 "b" 2)))
+               (and (or (symbol (str "x" 2 "y" 4 "b" 1))  (symbol (str "x" 2 "y" 4 "b" 0)))
+               (or (symbol (str "x" 2 "y" 4 "b" 1)) (list 'not (symbol (str "x" 2 "y" 4 "b" 1))))))))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
