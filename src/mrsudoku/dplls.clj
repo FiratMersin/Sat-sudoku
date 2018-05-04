@@ -23,15 +23,24 @@
 
 (declare make-var-true)
 
+;(defn make-var-true [phi x]
+;  (reduce (fn [phi' clause']
+;            (case clause'
+;              nil (reduced nil)
+;              true phi'
+;              ;;else
+;              (conj phi' clause')))
+;          #{}
+;          (map #(make-true-1 % x) phi)))
+
 (defn make-var-true [phi x]
-  (reduce (fn [phi' clause']
-            (case clause'
-              nil (reduced nil)
-              true phi'
-              ;;else
-              (conj phi' clause')))
-          #{}
-          (map #(make-true-1 % x) phi)))
+  (loop [phi phi, res #{}]
+    (if (seq phi)
+      (let [clause (make-true-1 (first phi) x)]
+        (if (or (nil? clause) (= true clause))
+          (recur (rest phi) res)
+          (recur (rest phi) (conj res clause))))
+      res)))
 
 
 (declare make-false-1)
@@ -50,15 +59,24 @@
 
 (declare make-var-false)
 
+;(defn make-var-false [phi x]
+;  (reduce (fn [phi' clause']
+;            (case clause'
+;              nil (reduced nil)
+;              true phi'
+;              ;;else
+;              (conj phi' clause')))
+;          #{}
+;          (map #(make-false-1 % x) phi)))
+
 (defn make-var-false [phi x]
-  (reduce (fn [phi' clause']
-            (case clause'
-              nil (reduced nil)
-              true phi'
-              ;;else
-              (conj phi' clause')))
-          #{}
-          (map #(make-false-1 % x) phi)))
+  (loop [phi phi, res #{}]
+    (if (seq phi)
+      (let [clause (make-false-1 (first phi) x)]
+        (if (or (nil? clause) (= true clause))
+          (recur (rest phi) res)
+          (recur (rest phi) (conj res clause))))
+      res)))
 
 
 
@@ -176,7 +194,7 @@
          sat;;solution trouvée
          (if-let [[phi', x, xval] (rule-1-literal phi)]
            (if (nil? phi')
-             nil
+             false
              (recur phi' (assoc sat x xval)))
            (if-let [[phi', x, xval] (rule-affirmative-negative phi)]
              (recur phi' (assoc sat x xval))
@@ -188,8 +206,3 @@
                    nil))))))))
 
 
-
-;(symbol? (symbol (str "x" 2 "y" 3 "b" 1)))
-(dpll #{ #{(symbol (str "x" 2 "y" 3 "b" 1)) }  #{ (list 'not(symbol (str "x" 2 "y" 3 "b" 2)) )} })
-
-;(map? (varfreqs #{ #{(symbol (str "x" 2 "y" 3 "b" 1)) }  #{ (symbol (str "x" 2 "y" 3 "b" 2)) }}))

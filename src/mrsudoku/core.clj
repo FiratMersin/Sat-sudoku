@@ -18,6 +18,6 @@
   "Let the sudoku begin!"
   [& args]
   (println "Welcome to MrSudoku...")
-  (let [grid (var-get #'g/sudoku-grid2)]
+  (let [grid (var-get #'g/sudoku-grid)]
     (show-sudoku! grid)))
 

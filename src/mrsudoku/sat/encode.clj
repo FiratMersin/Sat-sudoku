@@ -1,6 +1,7 @@
  (ns mrsudoku.sat.encode
   (:require [midje.sweet :refer [fact]]
-            [mrsudoku.grid :as g])
+            [mrsudoku.grid :as g]
+            [mrsudoku.normal :as nform])
             (:require [mrsudoku.utils :refer [concatv]]))
 
 (def ex-grille @#'g/sudoku-grid)
@@ -82,18 +83,18 @@
         b1 (encode-num-aux cx cy (nth bitseq 2) 1)
         b2 (encode-num-aux cx cy (nth bitseq 1) 2)
         b3 (encode-num-aux cx cy (nth bitseq 0) 3)]
-    (list 'and b0 (list 'and b1 (list 'and b2 (list 'and b3 true))))))
+    (list 'and b0 (list 'and b1 (list 'and b2  b3)))))
 
 (fact
   ;; bits '(0 1 0 1) donne x6y2b0 /\ (not x6y2b1) /\ x6y2b2 /\ (not x6y2 b3)
   (encode-num 6 2 5) => '(and x6y2b0 (and (not x6y2b1) (and x6y2b2
-                                                            (and (not x6y2b3) true))))
+                                                            (not x6y2b3))))
   ;; bits '(0 0 0 1) donne x6y2b0 /\ (not x6y2b1) /\ (not x6y2b2) /\ (not x6y2 b3)
   (encode-num 2 3 1) => '(and x2y3b0 (and (not x2y3b1) (and (not x2y3b2)
-                                                            (and (not x2y3b3) true))))
+                                                            (not x2y3b3))))
   ;; bits '(1 0 0 1) donne x6y2b0 /\ (not x6y2b1) /\ (not x6y2b2) /\ x6y2 b3)
   (encode-num 2 3 9) => '(and x2y3b0 (and (not x2y3b1) (and (not x2y3b2)
-                                                            (and x2y3b3 true)))))
+                                                            x2y3b3 ))))
 
 
 (defn encode-inits
@@ -112,7 +113,7 @@
 
 (defn encode-vide-aux [cx cy n]
   (if (= 1 n)
-    (list 'or (encode-num cx cy n) false)
+    (encode-num cx cy n)
     (list 'or (encode-num cx cy n) (encode-vide-aux cx cy (dec n)))))
 
 ;; <<A DEFINIR>>
@@ -126,25 +127,25 @@
  (encode-vide 7 3) ;; encodage d'une cellule vide en cx=7 et cy=3
  => '(or (and
           x7y3b0
-          (and (not x7y3b1) (and (not x7y3b2) (and x7y3b3 true))))
-         (or (and (not x7y3b0) (and (not x7y3b1) (and (not x7y3b2) (and x7y3b3 true))))
-             (or (and x7y3b0 (and x7y3b1 (and x7y3b2 (and (not x7y3b3) true))))
-                 (or (and (not x7y3b0) (and x7y3b1 (and x7y3b2 (and (not x7y3b3) true))))
+          (and (not x7y3b1) (and (not x7y3b2) x7y3b3 )))
+         (or (and (not x7y3b0) (and (not x7y3b1) (and (not x7y3b2) x7y3b3 )))
+             (or (and x7y3b0 (and x7y3b1 (and x7y3b2 (not x7y3b3) )))
+                 (or (and (not x7y3b0) (and x7y3b1 (and x7y3b2 (not x7y3b3))))
                      (or (and x7y3b0 (and (not x7y3b1)
-                                          (and x7y3b2 (and (not x7y3b3) true))))
+                                          (and x7y3b2 (not x7y3b3))))
                          (or (and (not x7y3b0)
                                   (and (not x7y3b1)
-                                       (and x7y3b2 (and (not x7y3b3) true))))
+                                       (and x7y3b2 (not x7y3b3))))
                              (or (and x7y3b0 (and x7y3b1
                                                   (and (not x7y3b2)
-                                                       (and (not x7y3b3) true))))
+                                                        (not x7y3b3))))
                                  (or (and (not x7y3b0) (and x7y3b1
                                                             (and (not x7y3b2)
-                                                                 (and (not x7y3b3) true))))
-                                     (or (and x7y3b0 (and (not x7y3b1)
+                                                                 (not x7y3b3) )))
+                                      (and x7y3b0 (and (not x7y3b1)
                                                           (and (not x7y3b2)
-                                                               (and (not x7y3b3) true))))
-                                         false))))))))))
+                                                                (not x7y3b3) )))
+                                         )))))))))
 
 (defn encode-vides
   "Formule d'encodage des cellules vides de la `grille`."
@@ -171,17 +172,16 @@
         b1 (distinct-empty-empty-aux cx1 cy1 cx2 cy2 1)
         b2 (distinct-empty-empty-aux cx1 cy1 cx2 cy2 2)
         b3 (distinct-empty-empty-aux cx1 cy1 cx2 cy2 3)]
-    (list 'or b0 (list 'or b1 (list 'or b2 (list 'or b3 false))))))
+    (nform/nnf (list 'or b0 (list 'or b1 (list 'or b2  b3))))))
 
 
 (fact
  ;; les cellules entre cx1=2,cy1=3 et cx2=2,cy=5 doivent être distinctes
  (distinct-empty-empty 2 3 2 5)
- => '(or (<=> l3c2b0 (not l5c2b0)) ; bits b0 distincts
-          (or (<=> l3c2b1 (not l5c2b1)) ; b1
-               (or (<=> l3c2b2 (not l5c2b2)) ; b2
-                    (or (<=> l3c2b3 (not l5c2b3))  ; b3
-                         false)))))
+ => '(or (and (or (not l3c2b0) (not l5c2b0)) (or l3c2b0 l5c2b0))
+         (or (and (or (not l3c2b1) (not l5c2b1)) (or l3c2b1 l5c2b1))
+             (or (and (or (not l3c2b2) (not l5c2b2)) (or l3c2b2 l5c2b2))
+                 (and (or (not l3c2b3) (not l5c2b3)) (or l3c2b3 l5c2b3))))))
 
 ;; <<A DEFINIR>>
 (declare distinct-filled-empty-aux)
@@ -202,13 +202,13 @@
         b1 (distinct-filled-empty-aux (nth bitseq 2) cx2 cy2 1)
         b2 (distinct-filled-empty-aux (nth bitseq 1) cx2 cy2 2)
         b3 (distinct-filled-empty-aux (nth bitseq 0) cx2 cy2 3)]
-    (list 'or b0 (list 'or b1 (list 'or b2 (list 'or b3 false))))))
+    (list 'or b0 (list 'or b1 (list 'or b2  b3 )))))
 
 
 (fact
  ;; cval1=5  et cx2=3,cy2=6
  (distinct-filled-empty 5 3 6)
- => '(or (not x3y6b0) (or x3y6b1 (or (not x3y6b2) (or x3y6b3 false)))))
+ => '(or (not x3y6b0) (or x3y6b1 (or (not x3y6b2)  x3y6b3))))
 
 
 (defn distinct-pair [cx1 cy1 cell1 cx2 cy2 cell2]
@@ -229,15 +229,15 @@
     :else true))
 
 (fact
- (distinct-pair 2 3 {:status :empty} 5 6 {:status :empty})
- => '(or (<=> l3c2b0 (not l6c5b0))
-          (or (<=> l3c2b1 (not l6c5b1))
-               (or (<=> l3c2b2 (not l6c5b2))
-                    (or (<=> l3c2b3 (not l6c5b3)) false))))
+; (distinct-pair 2 3 {:status :empty} 5 6 {:status :empty})
+; => '(or (<=> l3c2b0 (not l6c5b0))
+;          (or (<=> l3c2b1 (not l6c5b1))
+;               (or (<=> l3c2b2 (not l6c5b2))
+;                    (<=> l3c2b3 (not l6c5b3)))))
  (distinct-pair 2 3 {:status :init :value 5} 5 6 {:status :empty})
- => '(or (not x5y6b0) (or x5y6b1 (or (not x5y6b2) (or x5y6b3 false))))
+ => '(or (not x5y6b0) (or x5y6b1 (or (not x5y6b2) x5y6b3)))
  (distinct-pair 5 6  {:status :empty} 2 3 {:status :init :value 5})
- => '(or (not x5y6b0) (or x5y6b1 (or (not x5y6b2) (or x5y6b3 false))))
+ => '(or (not x5y6b0) (or x5y6b1 (or (not x5y6b2) x5y6b3)))
  (distinct-pair 2 3 {:status :init :value 5} 5 6 {:status :init :value 6})
  => true
  (distinct-pair 2 3 {:status :init :value 5} 5 6 {:status :init :value 5})
@@ -262,26 +262,19 @@
     (list 'and (distinct-cells-aux (first cells) (rest cells)) (distinct-cells (rest cells)))))
 
 
-(distinct-cells '([1 1 {:status :empty}]
-                  [2 1 {:status :init :value 5}]
-                  [2 2 {:status :empty}]
-                  [2 3 {:status :empty}]
-                  [2 4 {:status :empty}]))
-
-
 (fact
- (distinct-cells '([1 1 {:status :empty}]
+(distinct-cells '([1 1 {:status :empty}]
                    [2 1 {:status :init :value 5}]
                    [2 2 {:status :empty}]))
  => '(and (and (or (not x1y1b0)
-                (or x1y1b1 (or (not x1y1b2) (or x1y1b3 false))))
-             (and (or (<=> l1c1b0 (not l2c2b0))
-                              (or (<=> l1c1b1 (not l2c2b1))
-                                   (or (<=> l1c1b2 (not l2c2b2))
-                                        (or (<=> l1c1b3 (not l2c2b3)) false))))
+                (or x1y1b1 (or (not x1y1b2)  x1y1b3)))
+             (and (or (and (or (not l1c1b0) (not l2c2b0)) (or l1c1b0 l2c2b0))
+                      (or (and (or (not l1c1b1) (not l2c2b1)) (or l1c1b1 l2c2b1))
+                          (or (and (or (not l1c1b2) (not l2c2b2)) (or l1c1b2 l2c2b2))
+                              (and (or (not l1c1b3) (not l2c2b3)) (or l1c1b3 l2c2b3)))))
              true))
                          (and (and (or (not x2y2b0) (or x2y2b1
-                                                   (or (not x2y2b2) (or x2y2b3 false))))
+                                                   (or (not x2y2b2) x2y2b3)))
                                    true)
                               true)))
 
@@ -350,8 +343,8 @@
         (list 'and (encode-vides grille)
               (list 'and (encode-rows grille)
                     (list 'and (encode-cols grille)
-                          (list 'and (encode-blocks grille))))))),
+                          (list 'and (encode-blocks grille) true)))))),
 
- (encode-sudoku ex-grille)
+; (encode-sudoku ex-grille)
 ;; => .... attention : formule énorme ! ....
 
