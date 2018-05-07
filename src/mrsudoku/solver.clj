@@ -1,4 +1,4 @@
-(ns solver
+(ns mrsudoku.solver
    (:require
      [mrsudoku.normal :as nform]
      [mrsudoku.dplls :as ds]
@@ -31,8 +31,6 @@
                res2)]
       resf))
 
-
-
 (defn get-res [mdpll grid];;prend en entrée le résultat d'un dpll et une grille
   (loop [x 1 y 1 rgrid grid]
     (if (= 10 x)
@@ -45,29 +43,72 @@
           (recur (inc x) 1 rgrid)
           (recur x (inc y) rgrid))))))
 
+(defn get-clause-size1 [f];;retourne une formule contenant seulement les clauses de taille 1 de f
+  (loop [f f, res #{}]
+    (if (empty? f)
+      res
+      (if (= 1 (count (first f)))
+        (recur (rest f) (conj res (first f)))
+        (recur (rest f) res)))))
 
 
 
-grid-to-solve
+(defn filter-dcnf-res-map  [m clause]
+  (loop [clause clause m m]
+    (if (seq clause)
+      (let [ [x, xsigne] (if (symbol? (first clause))
+                           [(first clause) :positif]
+                           [(second (first clause)) :negatif])
+             signe (get m x)]
+        (case signe
+          nil (recur (rest clause) (assoc m x xsigne))
+          :positif (recur (rest clause) (if (= xsigne :positif)
+                                          m
+                                          (assoc m x :suppr)))
+          :negatif (recur (rest clause) (if (= xsigne :negatif)
+                                          m
+                                          (assoc m x :suppr)))
+          :suppr (recur (rest clause) m)))
+      m)))
+
+(defn filter-dcnf-res [f]
+  (loop [f f m {} fres #{}]
+    (if (seq f)
+      (if (and (= 1 (count (first f))) (not= \o (first (name (ds/get-var (ffirst f))))))
+        (recur (rest f) (filter-dcnf-res-map m (first f)) fres)
+        (recur (rest f) m (conj fres (first f))))
+      (loop [m m fres fres]
+        (if (seq m)
+          (let [[x signe] (first m)]
+            (if (= :suppr signe)
+              (recur (rest m) fres)
+              (if (= :negatif signe)
+                (recur (rest m) (conj fres #{(list 'not x)}))
+                (recur (rest m) (conj fres #{x})))))
+          fres)))))
 
 
-(def res (ds/dpll (nform/setify-cnf (nform/dcnf (nform/nnf (encode/encode-sudoku grid-to-solve))))))
-
-(def gridsolved (get-res res encode/ex-grille))
-(get res (symbol "x4y4b3"))
-(get-val-cell res 1 1)
-
-(get-val-cell res 4 4)
-(get-val-cell res 5 4)
-(get-val-cell res 6 4)
-
-(get-val-cell res 4 5)
-(get-val-cell res 5 5)
-(get-val-cell res 6 5)
-
-(get-val-cell res 4 6)
-(get-val-cell res 5 6)
-(get-val-cell res 6 6)
 
 
-gridsolved
+(defn affiche-res [m grid]
+  (do (println "Solution :")
+  (loop [x 1, y 1]
+    (if (> 10 x)
+      (let [toprint (if (= :empty (get (g/cell grid y x) :status))
+                      (str "["(get-val-cell m y x)"]")
+                       (str " "(get-val-cell m y x)" "))]
+      (if (= 9 y)
+        (do (println toprint)
+          (recur (inc x) 1))
+        (do (print toprint)
+          (recur x (inc y)))))))))
+
+
+(defn solve [grid]
+  (let [res (ds/dpll (nform/filter-contains-cnf (filter-dcnf-res (nform/setify-cnf (nform/dcnf (nform/nnf
+     (encode/encode-sudoku grid)))))))]
+
+    (if (not= res false)
+      (affiche-res res grid)
+      (println "Pas de solution pour cette grille"))))
+

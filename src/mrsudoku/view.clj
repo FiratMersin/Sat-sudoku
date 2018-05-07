@@ -2,8 +2,9 @@
 (ns mrsudoku.view
   (:require
    [mrsudoku.grid :as g]
+   [mrsudoku.solver :as solv]
    [seesaw.core :refer [frame label text config! grid-panel
-                        horizontal-panel vertical-panel button separator]]
+                        horizontal-panel vertical-panel button separator action to-frame]]
    [seesaw.border :refer [line-border]]))
 
 (def default-color "white")
@@ -60,7 +61,11 @@
 
 (defn mk-main-frame [grid ctrl]
   (let [grid-widget (mk-grid-view grid ctrl)
-        main-frame (frame :title "MrSudoku"
+        main-frame (let [close-action (action
+                                        :handler (fn [e] (.dispose (to-frame e)))
+                                        :name "Exit"
+                                        )]
+                          (frame :title "MrSudoku"
                           :content (horizontal-panel
                                     :items [grid-widget
                                             [:fill-h 32]
@@ -69,13 +74,16 @@
                                                      (grid-panel
                                                       :columns 1
                                                       :vgap 20
-                                                      :items [(button :text "Load")
-                                                              (button :text "Solve")
-                                                              (button :text "Quit")])
+                                                      :items [(button :action (action
+                                                                                :handler (fn [e] (solv/solve grid))
+                                                                                :name "sudoku solver"
+                                                                                )
+                                                                      :text "Solve")
+                                                              (button :action close-action :text "Quit")])
                                                      :fill-v])
                                             [:fill-h 32]])
                           :minimum-size [540 :by 380]
-                          :on-close :exit)]
+                          :on-close :exit))]
     (swap! ctrl #(assoc % :grid-widget grid-widget :main-frame main-frame))
     main-frame))
 

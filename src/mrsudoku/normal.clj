@@ -3,15 +3,6 @@
   (:use midje.sweet)
   (:require [clojure.set :as set]))
 
-
-;; EXERCICE : ajouter  l'implication et l'équivalence dans tout ce qui suit
-
-'(==> a b)
-'(<=> a b)
-
-
-;;; ## Simplifications des formules
-
 (defn simplify-one [f]
   (match f
     ;; *** simplification du not ***
@@ -76,7 +67,6 @@
                                           (simplify b)))
     :else f))
 
-
 (fact
   (simplify '(or (not (or (not true)
                         (and (or (not x) false)
@@ -93,8 +83,6 @@
   (simplify '(<=> (not (or true (not false))) false))
   => true
   )
-
-;;; ## Forme normale NNF
 
 (defn nnf' [f]
   (match f
@@ -157,7 +145,6 @@
            (not (or y (and false z)))))
   => '(or x (not y)))
 
-;;; ## Forme normale disjonctive CNF
 
 (defn distrib [f]
   (match f
@@ -176,7 +163,6 @@
     :else f))
 
 
-
 (defn cnf' [f]
   (match f
     (['and a b] :seq) (list 'and (cnf' a)
@@ -189,19 +175,18 @@
 (defn cnf [f]
   (cnf' (nnf f)))
 
-(cnf '(or (and a (or b c)) (and (not a) (not c))))
+(cnf '(<=> (and a (or b c)) (and (not a) (not c))))
 
 
 (defn setify-or [f]
   (match f
     (['or a b] :seq)
-    (set/union (setify-or a) (setify-or b))
+         (set/union (setify-or a) (setify-or b))
     :else #{f}))
 
-
-
-(setify-or '(or a (or a (or (not b ) (not b)))))
-
+(fact
+  (setify-or '(or a (or a (or (not b) (not b)))))
+  => '#{a (not b)})
 
 
 (defn setify-cnf [f]
@@ -211,9 +196,12 @@
     :else #{#{f}}))
 
 
-(setify-cnf (cnf '(==> (or a b) (<=> c d))))
-
-
+(fact
+ (setify-cnf '(and a b))
+  => '#{#{a} #{b}}
+ (setify-cnf '(and (and (or a c) (or a d)) (and (or b c) (or b d))))
+  => '#{#{c b} #{a d} #{b d} #{a c}}
+  )
 
 
 (defn filter-trivial-one [clause];;retourne true si clause à supprimer, false sinon, les littéraux doivent être des symboles
@@ -231,6 +219,11 @@
            (recur (rest clause), (assoc m litt signe)))))
      false)))
 
+(fact
+  (filter-trivial-one '#{a b (not a)})
+  => true
+  (filter-trivial-one '#{a b})
+  => false)
 
 (defn filter-trivial-cnf [f];; f est un ensemble d'ensembles
   (loop [f f, resf #{}]
@@ -240,56 +233,116 @@
         (recur (rest f) (conj resf (first f))))
       resf)))
 
+(fact
+  (filter-trivial-cnf '#{#{a b (not a)} #{a b}})
+  => '#{#{a b}})
 
-(filter-trivial-cnf #{#{(symbol (str "x" 2 "y" 4 "b" 3)) (symbol (str "x" 2 "y" 3 "b" 0)) (symbol (str "x" 2 "y" 3 "b" 4))}
-                      #{(symbol (str "x" 2 "y" 3 "b" 3)) (symbol (str "x" 2 "y" 3 "b" 2)) (list 'not (symbol (str "x" 2 "y" 3 "b" 2)))}})
+(defn filter-contains-cnf-aux [clause1 clause2]
+  (if (<= (count clause1) (count clause2))
+    false
+    (loop [c clause2]
+      (if (seq c)
+        (if (contains? clause1 (first c))
+          (recur (rest c))
+          false)
+        true))))
+
+(fact
+  (filter-contains-cnf-aux '#{a b c} '#{a})
+  => true
+  (filter-contains-cnf-aux '#{a} '#{b c})
+  => false
+  (filter-contains-cnf-aux '#{a b c} '#{a b})
+  => true)
 
 
-(declare cnfs)
+(defn filter-contains-cnf-clause [f' clause]
+  (loop [f' f' m #{}]
+    (if (seq f')
+      (if (filter-contains-cnf-aux (first f') clause)
+        (recur (rest f') (conj m (first f')))
+        (recur (rest f') m))
+      m)))
 
-(defn cnfs [f]
-  (filter-trivial-cnf (setify-cnf (cnf f))))
+(fact
+  (filter-contains-cnf-clause '#{#{a b c} #{a b}} '#{a})
+  => '#{#{a b c} #{a b}}
+  (filter-contains-cnf-clause '#{#{a b c} #{a b}} '#{a b c d})
+  => '#{})
+
+(defn disj-phi-m [phi m]
+  (loop [phi phi, m m]
+    (if (seq m)
+      (recur (disj phi (first m)) (rest m))
+      phi)))
+
+(fact
+   (disj-phi-m '#{#{a b c} #{a b}} '#{#{a b c} #{a b}})
+  => '#{})
+
+(defn map-clause-size [f]
+  (loop [f f, m {}]
+    (if (seq f)
+      (recur (rest f) (assoc m (count (first f)) (if (nil? (get m (count (first f))))
+                                                   #{(first f)}
+                                                   (conj (get m (count (first f))) (first f)))))
+      m)))
+
+(fact
+  (map-clause-size '#{#{a b c}})
+  => '{3 #{#{a c b}}}
+  (map-clause-size '#{#{a b} #{b d}})
+  => '{2 #{#{a b} #{b d}}})
+
+
+(defn filter-contains-cnf [f]; si une clause B contient une clause A de taille 1 alors on supprime B
+
+  (let [mcs (map-clause-size f)]
+  (loop [mcs mcs, m #{},i 1]
+    (if (= 1 i)
+      (if (empty? (get mcs i))
+        (recur mcs m (inc i))
+        (let [w (filter-contains-cnf-clause f (first (get mcs i)))]
+          (recur (assoc mcs i (disj (get mcs i) (first (get mcs i)))) (set/union m w) i)))
+      (disj-phi-m f m)))))
+
+
+(fact
+  (filter-contains-cnf '#{#{a b c}})
+  => '#{#{a b c}}
+  (filter-contains-cnf '#{#{a} #{a b c} #{a b}})
+  => '#{#{a}}
+   (filter-contains-cnf '#{#{a z} #{a b c}})
+  => '#{#{a z} #{a b c}})
+
 
 
 (declare estLitteral)
 
 (defn estLitteral [litt?]
   (or (symbol? litt?)
-      (= litt? true)
       (and (seq litt?)
            (= (first litt?) 'not))))
+
 
 (declare dcnf-aux)
 
 (defn dcnf-aux [f]
   (if (estLitteral f)
     [f, f]
-    (let [[conn, gauche, droite] f
+   (let [[conn, gauche, droite] f
           [vgauche, g'] (dcnf-aux gauche)
           [vdroite, d'] (dcnf-aux droite)
           v (gensym "o")]
-      [v, (list 'and (cnf (list '<=> v (list conn vgauche vdroite)))
-                (list 'and g' d'))])))
+       [v, (list 'and (cnf (list '<=> v (list conn vgauche vdroite)))
+                (list 'and g' d'))
+                ])))
 
 (declare dcnf)
 
 (defn dcnf [f]
-  (let [[v, f'] (dcnf-aux f)]
+ (let [[v, f'] (dcnf-aux f)]
     (list 'and v f')))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

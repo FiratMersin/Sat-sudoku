@@ -13,7 +13,7 @@
   (g/cell ex-grille 4 5) => {:status :init, :value 8}
   (g/cell ex-grille 4 6) => {:status :empty})
 
-;; <<A DEFINIR>>
+
 (declare log-binary)
 
 (defn log-binary [n]
@@ -27,7 +27,7 @@
   (log-binary 9) => '(1 0 0 1)
   (log-binary 42) => '(1 0 1 0 1 0))
 
-;; <<A DEFINIR>>
+
 (declare pad-seq)
 
 (defn pad-seq [s fill t];; on suppose que s est au moins de longueur t
@@ -116,7 +116,7 @@
     (encode-num cx cy n)
     (list 'or (encode-num cx cy n) (encode-vide-aux cx cy (dec n)))))
 
-;; <<A DEFINIR>>
+
 (declare encode-vide)
 
 (defn encode-vide [cx cy]
@@ -156,12 +156,12 @@
         (list 'and (encode-vide cx cy) acc)
         acc)) true grille))
 
-;; <<A DEFINIR>>
+
 (declare distinct-empty-empty-aux)
 
 (defn distinct-empty-empty-aux [cx1 cy1 cx2 cy2 b]
-  (let [ch1 (symbol (str "l" cy1 "c" cx1 "b" b))
-        ch2 (symbol (str "l" cy2 "c" cx2 "b" b))]
+  (let [ch1 (symbol (str "x" cy1 "y" cx1 "b" b))
+        ch2 (symbol (str "x" cy2 "y" cx2 "b" b))]
   (list '<=> ch1 (list 'not ch2))))
 
 
@@ -178,20 +178,20 @@
 (fact
  ;; les cellules entre cx1=2,cy1=3 et cx2=2,cy=5 doivent être distinctes
  (distinct-empty-empty 2 3 2 5)
- => '(or (and (or (not l3c2b0) (not l5c2b0)) (or l3c2b0 l5c2b0))
-         (or (and (or (not l3c2b1) (not l5c2b1)) (or l3c2b1 l5c2b1))
-             (or (and (or (not l3c2b2) (not l5c2b2)) (or l3c2b2 l5c2b2))
-                 (and (or (not l3c2b3) (not l5c2b3)) (or l3c2b3 l5c2b3))))))
+ => '(or (and (or (not x3y2b0) (not x5y2b0)) (or x3y2b0 x5y2b0))
+         (or (and (or (not x3y2b1) (not x5y2b1)) (or x3y2b1 x5y2b1))
+             (or (and (or (not x3y2b2) (not x5y2b2)) (or x3y2b2 x5y2b2))
+                 (and (or (not x3y2b3) (not x5y2b3)) (or x3y2b3 x5y2b3))))))
 
-;; <<A DEFINIR>>
+
+
+
 (declare distinct-filled-empty-aux)
 
 (defn distinct-filled-empty-aux [bitval cx2 cy2 b]
   (if (zero? bitval)
     (symbol (str "x" cx2 "y" cy2 "b" b))
     (list 'not (symbol (str "x" cx2 "y" cy2 "b" b)))))
-
-(distinct-filled-empty-aux 0 3 6 0)
 
 
 (declare distinct-filled-empty)
@@ -229,11 +229,11 @@
     :else true))
 
 (fact
-; (distinct-pair 2 3 {:status :empty} 5 6 {:status :empty})
-; => '(or (<=> l3c2b0 (not l6c5b0))
-;          (or (<=> l3c2b1 (not l6c5b1))
-;               (or (<=> l3c2b2 (not l6c5b2))
-;                    (<=> l3c2b3 (not l6c5b3)))))
+ (distinct-pair 2 3 {:status :empty} 5 6 {:status :empty})
+ => '(or (and (or (not x3y2b0) (not x6y5b0)) (or x3y2b0 x6y5b0))
+          (or (and (or (not x3y2b1) (not x6y5b1)) (or x3y2b1 x6y5b1))
+               (or (and (or (not x3y2b2) (not x6y5b2)) (or x3y2b2 x6y5b2))
+                    (and (or (not x3y2b3) (not x6y5b3)) (or x3y2b3 x6y5b3)))))
  (distinct-pair 2 3 {:status :init :value 5} 5 6 {:status :empty})
  => '(or (not x5y6b0) (or x5y6b1 (or (not x5y6b2) x5y6b3)))
  (distinct-pair 5 6  {:status :empty} 2 3 {:status :init :value 5})
@@ -268,10 +268,10 @@
                    [2 2 {:status :empty}]))
  => '(and (and (or (not x1y1b0)
                 (or x1y1b1 (or (not x1y1b2)  x1y1b3)))
-             (and (or (and (or (not l1c1b0) (not l2c2b0)) (or l1c1b0 l2c2b0))
-                      (or (and (or (not l1c1b1) (not l2c2b1)) (or l1c1b1 l2c2b1))
-                          (or (and (or (not l1c1b2) (not l2c2b2)) (or l1c1b2 l2c2b2))
-                              (and (or (not l1c1b3) (not l2c2b3)) (or l1c1b3 l2c2b3)))))
+             (and (or (and (or (not x1y1b0) (not x2y2b0)) (or x1y1b0 x2y2b0))
+                      (or (and (or (not x1y1b1) (not x2y2b1)) (or x1y1b1 x2y2b1))
+                          (or (and (or (not x1y1b2) (not x2y2b2)) (or x1y1b2 x2y2b2))
+                              (and (or (not x1y1b3) (not x2y2b3)) (or x1y1b3 x2y2b3)))))
              true))
                          (and (and (or (not x2y2b0) (or x2y2b1
                                                    (or (not x2y2b2) x2y2b3)))

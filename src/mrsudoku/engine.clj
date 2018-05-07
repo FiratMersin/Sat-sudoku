@@ -214,8 +214,19 @@
           (recur (inc n) res))
         res))))
 
-;;; Ecrire les 'fact' nécessaires...
 
+(fact
+ (block-conflicts (map #(g/mk-cell :set %) [1 2 3 4]) 1) => {})
+
+(fact
+ (block-conflicts (map #(g/mk-cell :set %) [1 2 3 1]) 1)
+ => {[1 1] {:status :conflict, :kind :block, :value 1},
+     [1 2] {:status :conflict, :kind :block, :value 1}})
+
+(fact
+ (block-conflicts [{:status :init, :value 8} {:status :empty} {:status :empty} {:status :empty} {:status :init, :value 6}
+                 {:status :set, :value 6} {:status :empty} {:status :empty} {:status :init, :value 3}] 4)
+ => {[3 5] {:status :conflict, :kind :block, :value 6}})
 
 
 
