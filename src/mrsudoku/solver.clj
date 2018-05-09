@@ -3,6 +3,7 @@
      [mrsudoku.normal :as nform]
      [mrsudoku.dplls :as ds]
      [mrsudoku.sat.encode :as encode]
+     [seesaw.core :refer [text! invoke-later]]
      [mrsudoku.grid :as g]))
 
 (def grid-to-solve @#'g/sudoku-grid3)
@@ -99,10 +100,24 @@
           (recur x (inc y)))))))))
 
 
-(defn solve [grid]
+(defn maj-grid [ctrl oldgrid resgrid]
+  (loop [x 1, y 1]
+    (if (> 10 x)
+      (do
+        (if (= :empty (get (g/cell oldgrid x y) :status))
+          (do
+            (let [cell-widget ((resolve 'mrsudoku.control/fetch-cell-widget) ctrl x y)]
+            ((resolve 'mrsudoku.control/cell-validate-input!) ctrl cell-widget x y (g/cell-value (g/cell resgrid x y)))
+            (invoke-later (text! cell-widget (g/cell-value (g/cell resgrid x y)))))))
+        (if (= 9 y)
+          (recur (inc x) 1)
+          (recur x (inc y)))))))
+
+
+(defn solve [ctrl grid]
   (let [res (ds/dpll (nform/filter-contains-cnf (filter-dcnf-res (nform/setify-cnf (nform/dcnf (nform/nnf
      (encode/encode-sudoku grid)))))))]
     (if (not= res false)
-      (get-res res grid)
+      (maj-grid ctrl grid (get-res res grid))
       (println "Pas de solution pour cette grille"))))
 

@@ -3,7 +3,7 @@
   (:require
    [mrsudoku.grid :as g]
    [mrsudoku.solver :as solv]
-   [seesaw.core :refer [frame label text config! grid-panel invoke-later select
+   [seesaw.core :refer [frame label text config! grid-panel invoke-later select text!
                         horizontal-panel vertical-panel button separator action to-frame]]
    [seesaw.border :refer [line-border]]))
 
@@ -61,29 +61,6 @@
                 :vgap 6
                 :items (into [] block-widgets))))
 
-(defn update-cell-view!
-  [cell cell-widget]
-  (case (:status cell)
-    :conflict (config! cell-widget :background conflict-color)
-    (:set :init :empty) (config! cell-widget :background default-color)
-    :solved (config! cell-widget :backround solved-color :editable? false)
-    (throw (ex-info "Cannot update cell widget." {:cell cell :cell-widget cell-widget}))))
-
-(defn fetch-cell-widget [ctrl cx cy]
-  (let [id-widget (keyword (str "#cell-" cx "-" cy))]
-    (if-let [cell-widget (select (:grid-widget (deref ctrl)) [id-widget])]
-      cell-widget
-      (throw (ex-info "Widget not found" {:cell-x cx :cell-y cy})))))
-
-(defn maj-grid [ctrl oldgrid resgrid]
-  (loop [x 1, y 1]
-    (if (> 10 x)
-      (do
-        (if (= :empty (get (g/cell oldgrid x y) :status))
-           ((resolve 'mrsudoku.control/cell-validate-input!) ctrl (fetch-cell-widget ctrl x y) x y (g/cell-value (g/cell resgrid x y))))
-        (if (= 9 y)
-          (recur (inc x) 1)
-          (recur x (inc y)))))))
 
 
 (defn mk-main-frame [grid ctrl]
@@ -102,10 +79,7 @@
                                                       :columns 1
                                                       :vgap 20
                                                       :items [(button :action (action
-                                                                                :handler (fn [e] (let [ngrid (solv/solve grid)]
-                                                                                                   (if ngrid
-                                                                                                   (maj-grid ctrl grid ngrid))
-                                                                                                   ))
+                                                                                :handler (fn [e] (solv/solve ctrl grid))
                                                                                 :name "sudoku solver"
                                                                                 )
                                                                       :text "Solve")
@@ -118,4 +92,10 @@
     main-frame))
 
 
-
+(defn update-cell-view!
+  [cell cell-widget]
+  (case (:status cell)
+    :conflict (config! cell-widget :background conflict-color)
+    (:set :init :empty) (config! cell-widget :background default-color)
+    :solved (config! cell-widget :backround solved-color :editable? false)
+    (throw (ex-info "Cannot update cell widget." {:cell cell :cell-widget cell-widget}))))
