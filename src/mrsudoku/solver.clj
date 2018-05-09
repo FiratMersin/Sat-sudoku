@@ -7,12 +7,7 @@
 
 (def grid-to-solve @#'g/sudoku-grid3)
 
-(defn get-sym-string [s]
-  (if (seq? s)
-    (name (second s))
-    (name s)))
-
-(defn get-val-cell [mdpll x y]
+(defn get-val-cell [mdpll x y];;retourne la valeur de la case [x y] depuis la map résultat d'un dpll
   (let [bo (get mdpll (symbol (str "x" x "y" y "b" 0)))
         b1 (get mdpll (symbol (str "x" x "y" y "b" 1)))
         b2 (get mdpll (symbol (str "x" x "y" y "b" 2)))
@@ -71,7 +66,7 @@
           :suppr (recur (rest clause) m)))
       m)))
 
-(defn filter-dcnf-res [f]
+(defn filter-dcnf-res [f]; retire les paires de clauses A,B résultat d'un dcnf avec A = (not B)
   (loop [f f m {} fres #{}]
     (if (seq f)
       (if (and (= 1 (count (first f))) (not= \o (first (name (ds/get-var (ffirst f))))))
@@ -90,7 +85,7 @@
 
 
 
-(defn affiche-res [m grid]
+(defn affiche-res [m grid]; affiche le résultat
   (do (println "Solution :")
   (loop [x 1, y 1]
     (if (> 10 x)
@@ -107,8 +102,7 @@
 (defn solve [grid]
   (let [res (ds/dpll (nform/filter-contains-cnf (filter-dcnf-res (nform/setify-cnf (nform/dcnf (nform/nnf
      (encode/encode-sudoku grid)))))))]
-
     (if (not= res false)
-      (affiche-res res grid)
+      (get-res res grid)
       (println "Pas de solution pour cette grille"))))
 

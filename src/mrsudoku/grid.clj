@@ -85,7 +85,7 @@
     [(mk-cell 9) (mk-cell 6) (mk-cell 1)
      (mk-cell 2) (mk-cell 8) (mk-cell 7)
      (mk-cell 3) (mk-cell 4) (mk-cell )]
-    [(mk-cell ) (mk-cell 3) (mk-cell 7)
+    [(mk-cell 5) (mk-cell 3) (mk-cell 7)
      (mk-cell 4) (mk-cell 1) (mk-cell 9)
      (mk-cell 2) (mk-cell 8) (mk-cell 6)]
     [(mk-cell 2) (mk-cell 8) (mk-cell 4)
