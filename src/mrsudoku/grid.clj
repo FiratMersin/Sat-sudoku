@@ -60,37 +60,6 @@
      (mk-cell) (mk-cell) (mk-cell 5)
      (mk-cell) (mk-cell 7) (mk-cell 9)]]])
 
-(def ^:private sudoku-grid3
-  [[;; row 1
-    [(mk-cell 5) (mk-cell 3) (mk-cell 4)
-     (mk-cell 6) (mk-cell 7) (mk-cell 2)
-     (mk-cell 1) (mk-cell 9) (mk-cell 8)]
-    [(mk-cell 6) (mk-cell 7) (mk-cell )
-     (mk-cell 1) (mk-cell 9) (mk-cell 5)
-     (mk-cell 3) (mk-cell 4) (mk-cell 2)]
-    [(mk-cell 9) (mk-cell 1) (mk-cell 2)
-     (mk-cell ) (mk-cell 4) (mk-cell 8)
-     (mk-cell 5) (mk-cell 6) (mk-cell 7)] ],
-   [;; row 2
-    [(mk-cell 8) (mk-cell 5) (mk-cell 9)
-     (mk-cell 4) (mk-cell 2) (mk-cell 6)
-     (mk-cell 7) (mk-cell 1) (mk-cell 3)]
-    [(mk-cell ) (mk-cell 6) (mk-cell 1)
-     (mk-cell 8) (mk-cell 5) (mk-cell 3)
-     (mk-cell 9) (mk-cell 2) (mk-cell )]
-    [(mk-cell 4) (mk-cell 2) (mk-cell 3)
-     (mk-cell 7) (mk-cell 9) (mk-cell 1)
-     (mk-cell 8) (mk-cell 5) (mk-cell 6)]],
-   [;; row 3
-    [(mk-cell 9) (mk-cell 6) (mk-cell 1)
-     (mk-cell 2) (mk-cell 8) (mk-cell 7)
-     (mk-cell 3) (mk-cell 4) (mk-cell )]
-    [(mk-cell 5) (mk-cell 3) (mk-cell 7)
-     (mk-cell 4) (mk-cell 1) (mk-cell 9)
-     (mk-cell 2) (mk-cell 8) (mk-cell 6)]
-    [(mk-cell 2) (mk-cell 8) (mk-cell 4)
-     (mk-cell 6) (mk-cell 3) (mk-cell 5)
-     (mk-cell 1) (mk-cell 7) (mk-cell 9)]]])
 
 (defn cell
   "Get the cell at coordinates `(cx,cy)`
@@ -392,5 +361,109 @@ with `cx` the column number and `cy` the row number."
               (when (= (:status cell) :empty)
                 (swap! cnt #(+ % 1)))) sudoku-grid)
    @cnt) => 51)
+
+(defn get-num-block [x y];;retourne le numéro du block de la cellule x y
+  (if (> 4 x)
+    (if (> 4 y)
+      1
+      (if (> 7 y)
+        4
+        7))
+    (if (> 7 x)
+      (if (> 4 y)
+        2
+        (if (> 7 y)
+          5
+          8))
+      (if (> 4 y)
+        3
+        (if (> 7 y)
+          6
+          9)))))
+
+
+(defn conj-blockxy-val [grid x y m];;récupère les valeurs impossibles à placer en x y (à partir des valeur présentes dans le même block)
+  (loop [block (block grid (get-num-block x y)), m m]
+    (if (seq block)
+      (recur (rest block) (let [v (cell-value (first block))]
+                            (if (nil? v)
+                              m
+                              (conj m v))))
+      m)))
+
+
+
+
+(defn get-set-conflict-val [x y grid];;retourne toutes les valeurs impossibles à placer en x y
+  (loop [x' 1, m #{}]
+    (if (= 10 x')
+      (loop [y' 1, m' m]
+        (if (= 10 y')
+          (conj-blockxy-val grid x y m')
+          (if (= y y')
+            (recur (inc y') m')
+            (recur (inc y') (let [v (cell-value (cell grid x y'))]
+                          (if (nil? v)
+                            m'
+                            (conj m' v)))))))
+      (if (= x x')
+        (recur (inc x') m)
+        (recur (inc x') (let [v (cell-value (cell grid x' y))]
+                          (if (nil? v)
+                            m
+                            (conj m v))))))))
+
+(defn get-possible-val-cell [x y grid];;retourne les valeur possible pour la case x y de la grid
+  (loop [m (get-set-conflict-val x y grid), res #{1 2 3 4 5 6 7 8 9}]
+    (if (seq m)
+      (recur (rest m) (disj res (first m)))
+      res)))
+
+
+(defn reduce-map-empty-cell-values-aux [m x y v]
+  (let [nblock (get-num-block x y)]
+  (loop [x' 1, y' 1, m m, bool false]
+     (if (= 10 x')
+      [m bool]
+      (if (and (or (and (= false (and (= x x') (= y y'))) (= nblock (get-num-block x' y')))
+                    (or (and (= x x') (not= y y')) (and (not= x x') (= y y'))))
+               (contains? (get m [x' y']) v))
+         (let [disjm  (disj (get m [x' y']) v)]
+           (if (empty? disjm)
+             (throw (Exception. "Grille sans solution"))
+             (if (= 9 y')
+               (recur (inc x') 1 (assoc m [x' y'] disjm) true)
+               (recur x' (inc y') (assoc m [x' y'] disjm) true))))
+        (if (= 9 y')
+          (recur (inc x') 1 m bool)
+          (recur x' (inc y') m bool)))))))
+
+
+(defn reduce-map-empty-cell-values [m]
+  (loop [m' m, resm m, bool false]
+    (if (seq m')
+      (if (= 1 (count (second (first m'))))
+        (let [ [tmp_resm tmp_bool] (reduce-map-empty-cell-values-aux resm (first (ffirst m')) (second (ffirst m')) (first (second (first m'))))]
+            (recur (rest m') tmp_resm (if (or tmp_bool bool)
+                                      true
+                                      false)))
+        (recur (rest m') resm bool))
+      (if bool
+        (recur resm, resm, false)
+        resm))))
+
+
+(defn get-map-empty-cell-values [grid];retourne une map qui associe à chaque cellule les valeurs possible
+  (loop [x 1, y 1, m {}]
+    (if (= 10 x)
+      (reduce-map-empty-cell-values m)
+      (if (= :empty (get (cell grid x y) :status))
+        (if (= 9 y)
+          (recur (inc x) 1 (assoc m [x y] (get-possible-val-cell x y grid)))
+          (recur x (inc y) (assoc m [x y] (get-possible-val-cell x y grid))))
+        (if (= 9 y)
+          (recur (inc x) 1 m)
+          (recur x (inc y) m))))))
+
 
 

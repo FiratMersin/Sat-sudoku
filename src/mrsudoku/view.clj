@@ -61,7 +61,19 @@
                 :vgap 6
                 :items (into [] block-widgets))))
 
-
+(defn loadgrid [ctrl]
+  (let [grid (:grid (deref ctrl))]
+   (loop [x 1, y 1]
+    (if (> 10 x)
+      (do
+        (if (= :set (get (g/cell grid x y) :status))
+          (do
+            (let [cell-widget ((resolve 'mrsudoku.control/fetch-cell-widget) ctrl x y)]
+            ((resolve 'mrsudoku.control/cell-clear!) ctrl cell-widget x y)
+            (invoke-later (text! cell-widget "")))))
+        (if (= 9 y)
+          (recur (inc x) 1)
+          (recur x (inc y))))))))
 
 (defn mk-main-frame [grid ctrl]
   (let [grid-widget (mk-grid-view grid ctrl)
@@ -78,8 +90,13 @@
                                                      (grid-panel
                                                       :columns 1
                                                       :vgap 20
-                                                      :items [(button :action (action
-                                                                                :handler (fn [e] (solv/solve ctrl grid))
+                                                      :items [(button :action
+                                                                      (action
+                                                                        :handler (fn [e] (loadgrid ctrl))
+                                                                        :name "grid load/clear")
+                                                                      :text "Load")
+                                                              (button :action (action
+                                                                                :handler (fn [e] (solv/solve ctrl))
                                                                                 :name "sudoku solver"
                                                                                 )
                                                                       :text "Solve")

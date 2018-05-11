@@ -315,7 +315,8 @@
    (filter-contains-cnf '#{#{a z} #{a b c}})
   => '#{#{a z} #{a b c}})
 
-
+(defn cnfs [f]
+  (setify-cnf (cnf f)))
 
 (declare estLitteral)
 
@@ -327,22 +328,24 @@
 
 (declare dcnf-aux)
 
-(defn dcnf-aux [f]
-  (if (estLitteral f)
-    [f, f]
-   (let [[conn, gauche, droite] f
-          [vgauche, g'] (dcnf-aux gauche)
-          [vdroite, d'] (dcnf-aux droite)
-          v (gensym "o")]
-       [v, (list 'and (cnf (list '<=> v (list conn vgauche vdroite)))
-                (list 'and g' d'))
-                ])))
-
 (declare dcnf)
 
+(defn dcnf-aux [f equivs]
+  (match f
+         ([op a b] :seq) (let [[a', equivs1] (dcnf-aux a equivs)
+                               [b', equivs2] (dcnf-aux b equivs1)
+                               f' (list op a' b')]
+                           (if-let [eq (get equivs2 f')]
+                             [eq, equivs2]
+                             (let [v (symbol (str "$" (inc (count equivs2))))]
+                               [v, (assoc equivs2 f' v)])))
+         :else [f equivs]))
+
 (defn dcnf [f]
- (let [[v, f'] (dcnf-aux f)]
-    (list 'and v f')))
+  (let [[y0, aux] (dcnf-aux (nnf f) {})]
+    (reduce set/union #{#{y0}} (map #(let [[x1 x2] %]
+                                       (cnfs (list '<=> x1 x2))) aux))))
+
 
 
 

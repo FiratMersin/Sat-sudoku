@@ -286,3 +286,10 @@
                    nil))))))))
 
 
+(fact
+  (dpll '#{#{a} #{(not a)}})
+  => false
+   (dpll '#{#{a (not a)}})
+  => '{a true}
+   (dpll '#{#{a (not a)} #{b}})
+  => '{a true b true})
